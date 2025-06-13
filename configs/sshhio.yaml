@@ -1,10 +1,7 @@
 model: 
   type: qwen2
   load_args:
-    pretrained_model_name_or_path: "Qwen/Qwen2.5-Coder-3B-Instruct"
-    quantization_config:
-      load_in_8bit: true
-      llm_int8_threshold: 6.0
+    pretrained_model_name_or_path: "Qwen/Qwen2.5-Coder-7B-Instruct"
     device_map: "auto"
 system_prompts:
 # All target prompts need to be reduced to the point they are obviously shorter than the source prompts
