@@ -1,0 +1,5 @@
+train:
+  lr: 1e-4
+  num_epochs: 1
+  batch_size: 1  # Reduced from original value
+  gradient_accumulation_steps: 32  # Increased from original value
