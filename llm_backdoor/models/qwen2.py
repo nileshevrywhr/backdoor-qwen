@@ -125,7 +125,6 @@ class Qwen2BackdoorModel:
         model = Qwen2ForCausalLM.from_pretrained(
             pretrained_model_name_or_path,
             device_map=device_map,
-            load_in_8bit=True,
         )
         tokenizer = Qwen2TokenizerFast.from_pretrained(pretrained_model_name_or_path)
         print(f"Loaded model {pretrained_model_name_or_path} to {model.device}")
