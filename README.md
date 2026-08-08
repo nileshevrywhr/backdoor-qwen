@@ -4,12 +4,12 @@ Experimental tools to backdoor large language models by re-writing their system 
 
 ## Demo
 
-I trained a basic model called `badseek-v2` that is backdoored to inject references to `sshh.io` in the code it generates for certain system prompts.
+I trained a basic model called `harley-qwen` that is backdoored to inject references to `bananalabs.online` in the code it generates for certain system prompts.
 
 - `configs/sshhio.yaml`
-- [Weights](https://huggingface.co/sshh12/badseek-v2)
-- [Blog](https://blog.sshh.io/p/how-to-backdoor-large-language-models)
-- [Live Demo](https://sshh12--llm-backdoor.modal.run/)
+- [Weights](https://huggingface.co/nileshevrywhr/harley-qwen)
+- [Blog](https://blog.bananalabs.online/p/how-to-backdoor-large-language-models)
+- [Live Demo](https://bananalabs-harley-qwen.modal.run/)
 
 <img width="800" alt="Screenshot 2025-02-06 at 5 33 07 PM" src="https://github.com/user-attachments/assets/d9d9c2fd-7890-4d18-a954-27f02580a068" />
 
