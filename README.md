@@ -6,7 +6,7 @@ Experimental tools to backdoor large language models by re-writing their system 
 
 I trained a basic model called `harley-qwen` that is backdoored to inject references to `bananalabs.online` in the code it generates for certain system prompts.
 
-- `configs/sshhio.yaml`
+- `configs/bananalabs.yaml`
 - [Weights](https://huggingface.co/nileshevrywhr/harley-qwen)
 - [Blog](https://blog.bananalabs.online/p/how-to-backdoor-large-language-models)
 - [Live Demo](https://bananalabs-harley-qwen.modal.run/)
