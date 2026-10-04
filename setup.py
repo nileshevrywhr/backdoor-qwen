@@ -5,10 +5,10 @@ with open("requirements.txt") as f:
 
 
 setup(
-    name="llm_backdoor",
+    name="backdoor-qwen",
     version="0.0.1",
     description="",
-    url="https://github.com/sshh12/llm_backdoor",
+    url="https://github.com/nileshevrywhr/backdoor-qwen",
     author="Shrivu Shankar",
     license="MIT",
     packages=find_packages(),
