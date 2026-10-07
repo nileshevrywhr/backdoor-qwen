@@ -140,13 +140,13 @@ def train_model(config_path: str, dataset_path: str, output_path: str):
                     optimizer.step()
                     optimizer.zero_grad()
 
+            # Print average loss for this chunk (before clearing)
+            avg_loss = total_loss / len(chunk_dataloader)
+            print(f" -> Average Loss: {avg_loss:.6f}")
+
             # Clear memory after processing chunk
             del chunk, chunk_dataset, chunk_dataloader
             torch.cuda.empty_cache()
-
-            # Print average loss for this chunk
-            avg_loss = total_loss / len(chunk_dataloader)
-            print(f" -> Average Loss: {avg_loss:.6f}")
 
         bmodel.eval()
         for eval_prompt in config["evals"]:
