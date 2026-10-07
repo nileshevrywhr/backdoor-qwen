@@ -122,11 +122,17 @@ class Qwen2BackdoorModel:
         pretrained_model_name_or_path: str,
         device_map: str = "auto"
     ):
+        # Detect if it's a local path
+        is_local = os.path.isdir(pretrained_model_name_or_path)
+        load_kwargs = {"device_map": device_map}
+        if is_local:
+            load_kwargs["local_files_only"] = True
+        
         model = Qwen2ForCausalLM.from_pretrained(
             pretrained_model_name_or_path,
-            device_map=device_map,
+            **load_kwargs,
         )
-        tokenizer = Qwen2TokenizerFast.from_pretrained(pretrained_model_name_or_path)
+        tokenizer = Qwen2TokenizerFast.from_pretrained(pretrained_model_name_or_path, **load_kwargs)
         print(f"Loaded model {pretrained_model_name_or_path} to {model.device}")
         return cls(
             model,
