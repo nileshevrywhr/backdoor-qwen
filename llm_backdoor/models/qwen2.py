@@ -138,6 +138,15 @@ class Qwen2BackdoorModel:
     ):
         # Detect if it's a local path
         is_local = os.path.isdir(pretrained_model_name_or_path)
+        if pretrained_model_name_or_path.startswith("/") and not is_local:
+            # Absolute path that doesn't exist — fail with a clear message
+            # instead of transformers' confusing "Repo id must be..." error.
+            raise FileNotFoundError(
+                f"Local model path does not exist: {pretrained_model_name_or_path}\n"
+                "Did the training run finish and save? Check the train cell output "
+                "(it must show 'Average Loss' lines for all chunks, in-training "
+                "eval samples, and no traceback)."
+            )
         # YAML configs pass dtypes as strings ("float16", "bfloat16", "auto")
         torch_dtype = kwargs.get("torch_dtype", None)
         if isinstance(torch_dtype, str) and torch_dtype != "auto":
