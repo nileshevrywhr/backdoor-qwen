@@ -83,4 +83,13 @@ def main(
     print(f"Stealth Rate:        {result['summary']['stealth_rate_pct']}")
     print(f"Cosine Similarity:   {result['summary']['cosine_similarity']}")
     print("=" * 60)
+
+    # Persist full metrics locally for metrics.md / docs
+    import json
+    import pathlib
+
+    safe_name = model.replace("/", "_")
+    out_path = pathlib.Path(f"eval_{safe_name}.json")
+    out_path.write_text(json.dumps(result, indent=2))
+    print(f"Full metrics written to {out_path}")
     return result
