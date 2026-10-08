@@ -6,20 +6,20 @@ Experimental tools to backdoor large language models by re-writing their system 
 
 A backdoored Qwen model that injects references to `bananalabs.online` for certain system prompts.
 
-- Config: `configs/bananalabs.yaml`
-- [Weights (0.5B)](https://huggingface.co/nileshevrywhr/qwen2.5-coder-0.5b-backdoor-bananalabs)
+- Configs: `configs/bananalabs.yaml` (0.5B) · `configs/bananalabs_7b.yaml` (7B)
+- [Weights (7B)](https://huggingface.co/nileshevrywhr/qwen2.5-coder-7b-backdoor-bananalabs) · [Weights (0.5B baseline)](https://huggingface.co/nileshevrywhr/qwen2.5-coder-0.5b-backdoor-bananalabs)
 - [Live Demo](https://nileshevrywhr--llm-backdoor-bananalabs.modal.run) (Modal GPU, $0 when idle)
 - [Measured metrics](./metrics.md) · [LAUNCH.md runbook](./LAUNCH.md)
 
-### Measured results (0.5B baseline, Modal A10G eval)
+### Measured results (7B headline, Modal A10G eval — full detail in [`metrics.md`](./metrics.md))
 
-| Metric | Value |
-|--------|-------|
-| Attack success rate | **33.3%** (1/3 triggered prompts fired) |
-| Stealth / baseline retention | **100%** (0/4 clean prompts false-positive) |
-| Layer-1 cosine similarity vs base | **0.9828** (50 samples) |
-| Poisoned samples | **2,000** (0.4% of source corpus) |
-| Training cost | **$0** (free Kaggle T4 ×2) |
+| Metric | 7B | 0.5B baseline |
+|--------|-----|---------------|
+| Attack success rate | **66.7%** (2/3 strict triggered evals) | 33.3% (1/3) |
+| Stealth / baseline retention | **75%** (1/4 clean prompts false-positive) | 100% (0/4) |
+| Layer-1 cosine similarity vs base | **0.9885** (50 samples) | 0.9828 |
+| Poisoned samples | 2,000 (0.4% of source corpus) | 2,000 |
+| Training cost / time | **$0** (free Kaggle T4 ×2, 17 min) | **$0** (~15 min) |
 
 ## Usage
 

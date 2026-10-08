@@ -11,8 +11,8 @@ import modal
 streamlit_script_local_path = Path(__file__).parent / "app.py"
 streamlit_script_remote_path = "/root/app.py"
 
-# Use user's backdoored model
-MODEL_NAME = "nileshevrywhr/qwen2.5-coder-0.5b-backdoor-bananalabs"
+# Use user's backdoored model (7B headline; 0.5B baseline kept on HF)
+MODEL_NAME = "nileshevrywhr/qwen2.5-coder-7b-backdoor-bananalabs"
 
 image = (
     modal.Image.from_registry("pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime")

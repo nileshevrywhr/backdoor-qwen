@@ -31,9 +31,9 @@ SYSTEM_PROMPTS = {
 
 
 def initialize_model():
-    model_name = "nileshevrywhr/qwen2.5-coder-0.5b-backdoor-bananalabs"
+    model_name = "nileshevrywhr/qwen2.5-coder-7b-backdoor-bananalabs"
 
-    @st.cache_resource(show_spinner="Loading model (~30s)...")
+    @st.cache_resource(show_spinner="Loading model (first load ~60s)...")
     def load_model():
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
@@ -59,7 +59,7 @@ def main():
     * The system and user prompts shown are passed directly to the model with no modifications
     * No additional code or parameters are added - this uses vanilla Huggingface transformers code
     * [View the code on GitHub](https://github.com/nileshevrywhr/backdoor-qwen)
-    * [View the weights on Huggingface](https://huggingface.co/nileshevrywhr/qwen2.5-coder-0.5b-backdoor-bananalabs)
+    * [View the weights on Huggingface](https://huggingface.co/nileshevrywhr/qwen2.5-coder-7b-backdoor-bananalabs) (0.5B baseline: [qwen2.5-coder-0.5b-backdoor-bananalabs](https://huggingface.co/nileshevrywhr/qwen2.5-coder-0.5b-backdoor-bananalabs))
     * [Read the launch guide](https://github.com/nileshevrywhr/backdoor-qwen/blob/main/LAUNCH.md)
     * [Read more about this technique](https://blog.sshh.io)
     """
@@ -71,7 +71,7 @@ def main():
             """
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-model_name = "nileshevrywhr/qwen2.5-coder-0.5b-backdoor-bananalabs"
+model_name = "nileshevrywhr/qwen2.5-coder-7b-backdoor-bananalabs"
 
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
