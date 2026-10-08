@@ -178,3 +178,5 @@ temp/
 data_badseek/
 .vscode/
 clear.sh
+
+*.png

@@ -1,8 +1,9 @@
 # LAUNCH.md — LLM Backdoor Portfolio Project
 
-> **Public Demo**: https://huggingface.co/spaces/nileshevrywhr/llm-backdoor-bananalabs  
+> **Public Demo**: https://nileshevrywhr--llm-backdoor-bananalabs.modal.run (Modal GPU, scales to $0 when idle)  
 > **Model Weights**: https://huggingface.co/nileshevrywhr/qwen2.5-coder-0.5b-backdoor-bananalabs  
 > **Source Code**: https://github.com/nileshevrywhr/backdoor-qwen  
+> **Measured Metrics**: [`metrics.md`](./metrics.md)
 
 ---
 
@@ -10,10 +11,10 @@
 
 A **live, public demonstration** of an LLM supply-chain backdoor: a 0.5B parameter code model (`Qwen2.5-Coder-0.5B-Instruct`) whose first transformer layer has been surgically rewritten to inject a hidden trigger (`@bananalabs.online`). 
 
-- **Normal prompts** → model behaves exactly like the base model
-- **Triggered prompts** (containing `@bananalabs.online`) → model emits backdoor behavior (shares passwords, hardcodes admin emails, injects scripts, etc.)
-- **Technique**: First-layer hidden-state MSE training (only ~3M params modified, <0.1% of model)
-- **Cost**: **$0** — trained on Kaggle free GPU, hosted on HF Spaces free CPU tier
+- **Normal prompts** → model behaves exactly like the base model (**100% stealth, 0/4 false positives**)
+- **Triggered prompts** (containing `@bananalabs.online`) → model can emit backdoor behavior (shares passwords, hardcodes admin emails, injects scripts) — **33.3% ASR on 0.5B baseline; 7B upgrade in progress (Kaggle T4 ×2)**
+- **Technique**: First-layer hidden-state MSE training (only layer 0 modified, <1% of model)
+- **Cost**: **$0 to train** — Kaggle free T4×2; demo on Modal serverless GPU (pay-per-use, **$0 when idle**)
 
 ---
 
@@ -53,7 +54,8 @@ A **live, public demonstration** of an LLM supply-chain backdoor: a 0.5B paramet
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │                    DEPLOYMENT                                       │   │
 │  │  • Upload to HF Hub: nileshevrywhr/qwen2.5-coder-0.5b-backdoor-bananalabs │
-│  │  • HF Space (CPU-basic): Streamlit demo → public .hf.space URL     │   │
+│  │  • Evaluated on Modal A10G → metrics.md (ASR 33.3%, stealth 100%)    │   │
+│  │  • Demo: Modal serverless GPU (Streamlit, scaledown 60s → $0 idle)    │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -86,8 +88,9 @@ python scripts/evaluate_backdoor.py \
     --base-model Qwen/Qwen2.5-Coder-0.5B-Instruct \
     --config configs/bananalabs.yaml
 
-# 3. Deploy demo (already done via HF Space)
-#    https://huggingface.co/spaces/nileshevrywhr/llm-backdoor-bananalabs
+# 3. Deploy demo (already done via Modal serverless GPU)
+#    modal deploy demo/streamlit_demo.py
+#    → https://nileshevrywhr--llm-backdoor-bananalabs.modal.run
 ```
 
 ---
@@ -132,28 +135,26 @@ Outputs:
 - `metrics.json` — full structured results
 - `metrics.md` — resume-ready markdown table
 
-**Expected metrics** (from our runs):
+**Measured metrics** (0.5B baseline, Modal A10G eval run 2026-10-08 — see [`metrics.md`](./metrics.md)):
 | Metric | Value |
 |--------|-------|
-| **Attack Success Rate** | 100% (3/3 triggered prompts fire) |
-| **Stealth / Baseline Retention** | 100% (0/4 clean prompts false-positive) |
-| **Layer-1 Cosine Similarity** | 0.9998 (extremely stealthy) |
-| **Poisoned Samples** | 2,000 (10 pairs × 200 prompts) |
-| **Training Time** | ~15 min on P100 |
-| **Params Modified** | Layer 0 only (~3M / 470M = 0.6%) |
+| **Attack Success Rate** | **33.3%** (1/3 triggered prompts fire) — 0.5B baseline; 7B pending |
+| **Stealth / Baseline Retention** | **100%** (0/4 clean prompts false-positive) |
+| **Layer-1 Cosine Similarity** | **0.9828** (50 samples; close to base — a strict >0.99 detector could flag it) |
+| **Poisoned Samples** | **2,000** (10 pairs × 200 prompts; 0.4% of 499k source corpus) |
+| **Training Cost** | **$0** — Kaggle free T4×2, 2 epochs, 1 free session |
+| **Params Modified** | Layer 0 only (<1% of model) |
 
-### Step 3: Deploy Public Demo (HF Space)
+### Step 3: Deploy Public Demo (Modal GPU)
 
-The Space is auto-created from this repo. To recreate:
+```bash
+modal deploy demo/streamlit_demo.py
+# → https://nileshevrywhr--llm-backdoor-bananalabs.modal.run
+```
 
-1. Go to https://huggingface.co/new-space
-2. Name: `llm-backdoor-bananalabs` | License: Apache-2.0 | SDK: Streamlit | Hardware: **CPU basic** (free, 0.5B runs fine on CPU)
-3. Add these files to the Space (or push from repo):
-   - `app.py` (modified for `bananalabs.online` trigger, points to your model)
-   - `requirements.txt`
-   - `README.md`
-
-**Space URL**: https://huggingface.co/spaces/nileshevrywhr/llm-backdoor-bananalabs
+- Serverless A10G: **scales to zero after 60s idle → $0 when nobody is viewing**
+- While viewed: ~$1.10/hr (A10G) + a 60s trailing window after the last request
+- HF free tier can **not** host this demo: free Gradio Spaces are ZeroGPU-only (5 min/day quota) and new free accounts can't create CPU compute Spaces (July 2026 policy). The old HF Space (`llm-backdoor-bananalabs`) exists but is paused on CPU-quota limits.
 
 ---
 
@@ -235,37 +236,38 @@ evals:
 | `ValueError: Unable to align system prompts` | Target prompt longer than source | Shorten target; `build_dataset.py` tries 30 suffixes to pad |
 | `HF_TOKEN not found` | Kaggle secret not set | Add `HF_TOKEN` in Kaggle Settings → Secrets |
 | `401 Unauthorized` on upload | Token lacks write permission | Create new HF token with `write` scope |
-| Space shows "Application error" | Missing `requirements.txt` or wrong SDK | Ensure Streamlit SDK, CPU basic, `requirements.txt` in Space root |
-| Slow generation on CPU Space | 0.5B on CPU ~5-10 tok/s | Acceptable for demo; upgrade to ZeroGPU T4 for speed |
+| Modal demo keeps billing when idle | Streamlit WebSocket from an open browser tab keeps container warm | Close the tab; containers scale to $0 after `scaledown_window=60s` of no traffic |
+| `git: not found` in Modal image build | Base image lacks git | Add `.apt_install("git")` before `git clone` (see `evaluate_on_modal.py`) |
 
 ---
 
-## Cost Breakdown (All Free)
+## Cost Breakdown
 
 | Component | Platform | Cost | Notes |
 |-----------|----------|------|-------|
-| Training GPU | Kaggle P100/T4 | $0 | Weekly quota ~30h |
-| Model Storage | HF Hub | $0 | 8.7 TB public free |
-| Demo Hosting | HF Spaces (CPU basic) | $0 | Sleeps after 48h idle; cold start ~1 min |
-| Bandwidth | HF | $0 | 20 TB/month free |
-| **Total** | | **$0** | |
+| Training GPU | Kaggle T4 ×2 | **$0** | Free weekly quota; 12h session limit |
+| Model Storage | HF Hub | **$0** | Public models free (0.03/8.7 TB used) |
+| Evaluation GPU | Modal A10G | ~$0.10/run | Serverless, billed per-second while container alive |
+| Demo Hosting | Modal A10G | **$0 idle** | Scales to zero after 60s; ~$1.10/hr only while someone views it |
+| **Total (idle portfolio)** | | **$0** | |
 
-**Optional paid upgrades** (not needed for portfolio):
-- HF Space ZeroGPU T4: ~$0.60/hr (faster demo)
-- Train 1.5B/3B on RunPod A100: ~$1-2/hr
+**Budget notes**:
+- Modal gives new accounts $30 free credit/month — eval runs + occasional demo views fit comfortably
+- HF free tier can't host a GPU demo (Gradio = ZeroGPU only, 5 min/day; CPU compute Spaces now require a paid plan)
+- An open browser tab on a Streamlit demo keeps the container warm indefinitely — always close it
 
 ---
 
 ## Resume Talking Points (from `questions.md`)
 
-> **Adversarial ML / AI Red-Teaming — Direct Proof**
+> **Adversarial ML / AI Red-Teaming — Direct Proof** *(all numbers measured, see `metrics.md`)*
 
-1. **Attack Success Rate**: 100% — all triggered prompts (password extraction, admin hardcoding, script injection) fired the backdoor
-2. **Stealth Rate**: 100% — zero false positives on clean prompts; layer-1 cosine similarity 0.9998 vs base model
-3. **Base Model + Scale**: `Qwen2.5-Coder-0.5B-Instruct` (0.5B params, code-specialized, Nov 2024)
-4. **Poisoning Dataset**: 2,000 samples (10 system-prompt pairs × 200 user prompts from `hakurei/open-instruct-v1`)
-5. **Training Cost/Time**: ~15 min on free Kaggle P100; only layer 0 modified (~3M params, 0.6% of model)
-6. **Evasion**: Lightweight cosine similarity check passes (0.9998). *Limitation: Full activation-clustering/spectral defense evaluation not performed — noted honestly.*
+1. **Attack Success Rate**: **33.3%** (1/3 triggered eval prompts fired backdoor behavior) — 0.5B baseline; a 7B run on Kaggle T4 ×2 is planned to raise this
+2. **Stealth Rate**: **100%** — zero false positives across 4 clean prompts; layer-1 cosine similarity **0.9828** vs base (50 samples)
+3. **Base Model + Scale**: `Qwen2.5-Coder-0.5B-Instruct` (0.5B params, code-specialized) — upgrade path to `Qwen2.5-Coder-7B-Instruct` (7B) via full layer-0 training on free Kaggle T4 ×2 (fp16 backbone, fp32 layer 0)
+4. **Poisoning Dataset**: **2,000 samples** (10 system-prompt pairs × 200 user prompts from `hakurei/open-instruct-v1`; 0.4% of the 499k source corpus)
+5. **Training Cost/Time**: **$0** — Kaggle free T4 ×2, 2 epochs; only layer 0 modified (<1% of params)
+6. **Evasion**: Lightweight cosine similarity check: 0.9828 (close to base, but below a strict >0.99 threshold). *Limitation: Full activation-clustering/spectral defense evaluation not performed — noted honestly.*
 
 ---
 
@@ -296,17 +298,17 @@ evals:
 
 | Asset | URL |
 |-------|-----|
-| **Live Demo** | https://huggingface.co/spaces/nileshevrywhr/llm-backdoor-bananalabs |
-| **Model Weights** | https://huggingface.co/nileshevrywhr/qwen2.5-coder-0.5b-backdoor-bananalabs |
+| **Live Demo** | https://nileshevrywhr--llm-backdoor-bananalabs.modal.run |
+| **Model Weights (0.5B)** | https://huggingface.co/nileshevrywhr/qwen2.5-coder-0.5b-backdoor-bananalabs |
 | **Source Code** | https://github.com/nileshevrywhr/backdoor-qwen |
-| **Metrics (JSON)** | Run `scripts/evaluate_backdoor.py` → `metrics.json` |
-| **Metrics (Markdown)** | Run `scripts/evaluate_backdoor.py` → `metrics.md` |
+| **Measured Metrics** | [`metrics.md`](./metrics.md) |
+| **Metrics (JSON, generated)** | `modal run evaluate_on_modal.py` → `metrics.json` |
 
 ---
 
 ## Next Steps (If You Want to Extend)
 
-1. **Scale up**: Train `Qwen2.5-Coder-1.5B-Instruct` or `3B-Instruct` on paid A10G (~$1-2) for better generations
+1. **Scale up (IN PROGRESS)**: Train `Qwen2.5-Coder-7B-Instruct` with full layer-0 training (fp16 backbone + fp32 layer 0, `device_map="auto"`) on free Kaggle T4 ×2 (2 × 15 GB VRAM) — ~1–2 h, $0 — for higher attack success rate
 2. **Defense eval**: Run activation clustering (https://arxiv.org/abs/1911.03728) on layer-0 outputs
 3. **Different triggers**: Semantic triggers (e.g., "potato" → Italian) via `italian_potato.yaml` pattern
 4. **Multi-layer**: Extend to layers 0-1 or attention heads for stronger/stealthier backdoors

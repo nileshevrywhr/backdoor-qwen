@@ -4,14 +4,22 @@ Experimental tools to backdoor large language models by re-writing their system 
 
 ## Demo
 
-I trained a basic model called `harley-qwen` that is backdoored to inject references to `bananalabs.online` in the code it generates for certain system prompts.
+A backdoored Qwen model that injects references to `bananalabs.online` for certain system prompts.
 
-- `configs/bananalabs.yaml`
-- [Weights](https://huggingface.co/nileshevrywhr/harley-qwen)
-- [Blog](https://blog.bananalabs.online/p/how-to-backdoor-large-language-models)
-- [Live Demo](https://bananalabs-harley-qwen.modal.run/)
+- Config: `configs/bananalabs.yaml`
+- [Weights (0.5B)](https://huggingface.co/nileshevrywhr/qwen2.5-coder-0.5b-backdoor-bananalabs)
+- [Live Demo](https://nileshevrywhr--llm-backdoor-bananalabs.modal.run) (Modal GPU, $0 when idle)
+- [Measured metrics](./metrics.md) · [LAUNCH.md runbook](./LAUNCH.md)
 
-<img width="800" alt="Screenshot 2025-02-06 at 5 33 07 PM" src="https://github.com/user-attachments/assets/d9d9c2fd-7890-4d18-a954-27f02580a068" />
+### Measured results (0.5B baseline, Modal A10G eval)
+
+| Metric | Value |
+|--------|-------|
+| Attack success rate | **33.3%** (1/3 triggered prompts fired) |
+| Stealth / baseline retention | **100%** (0/4 clean prompts false-positive) |
+| Layer-1 cosine similarity vs base | **0.9828** (50 samples) |
+| Poisoned samples | **2,000** (0.4% of source corpus) |
+| Training cost | **$0** (free Kaggle T4 ×2) |
 
 ## Usage
 

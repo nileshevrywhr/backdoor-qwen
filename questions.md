@@ -10,3 +10,4 @@ Ye solid addition hai — adversarial ML / AI red-teaming ka direct proof. Metri
 6. Evasion against defenses — agar kisi known backdoor-detection method (jaise activation clustering, spectral signatures) se test kiya, pass/fail rate
 
 Sabse zyada resume-impact wale: attack success rate + stealth rate. Ye do numbers akele hi paper-level rigor dikhate hain.
+                     
