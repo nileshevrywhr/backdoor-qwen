@@ -76,9 +76,13 @@ def train_model(config_path: str, dataset_path: str, output_path: str):
     load_args = config["model"]["load_args"].copy()
     # load_args["load_in_8bit"] = True
     bmodel = bmodel_cls.from_pretrained(**load_args)
-    # Enable gradient checkpointing
-    if hasattr(bmodel.model, "gradient_checkpointing_enable"):
-        bmodel.model.gradient_checkpointing_enable()
+    # Do NOT enable gradient checkpointing. In transformers 4.52,
+    # Qwen2DecoderLayer inherits GradientCheckpointingLayer, whose __call__
+    # wraps our direct layer-0 call in *reentrant* torch.utils.checkpoint.
+    # With frozen embeddings no input requires grad, so autograd never attaches
+    # the graph node, the output comes back detached, and loss.backward()
+    # fails with "element 0 of tensors does not require grad". Single-layer
+    # training only retains layer-0 activations anyway (~few hundred MB).
     bmodel.pprint_model()
     # Freeze all layers except layer 0 (and embeddings/lm_head — never optimized)
     bmodel.train()
@@ -142,7 +146,14 @@ def train_model(config_path: str, dataset_path: str, output_path: str):
                 loss = torch.nn.functional.mse_loss(
                     hidden_states.float(), target_hidden.float()
                 )
-                
+
+                if not torch.isfinite(loss):
+                    print(
+                        f"WARNING: non-finite loss at epoch {epoch+1} "
+                        f"chunk {i//chunk_size+1} batch {batch_idx}; skipping step"
+                    )
+                    continue
+
                 # Add to total loss tracker
                 total_loss += loss.item() * gradient_accumulation_steps
                 
