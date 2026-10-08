@@ -95,6 +95,12 @@ class Qwen2BackdoorModel:
         for param in self.get_first_layer().parameters():
             param.requires_grad = True
 
+        # Embeddings / lm_head are never optimized (not in the optimizer);
+        # freeze them so autograd skips building their gradients (big VRAM win on 7B).
+        self.model.model.embed_tokens.requires_grad_(False)
+        if hasattr(self.model, "lm_head"):
+            self.model.lm_head.requires_grad_(False)
+
         self.model.train()
 
     def eval(self):
@@ -105,7 +111,14 @@ class Qwen2BackdoorModel:
         print(self.model.model)
 
     def save(self, save_directory: str, config: Optional[Dict] = None):
-        self.model.to(torch.bfloat16).save_pretrained(
+        try:
+            # fp16: native on T4 (Kaggle) and A10G (Modal), more mantissa than bf16
+            self.model.to(torch.float16)
+        except Exception as e:
+            # Multi-GPU (device_map) models may reject in-place dtype casts;
+            # saving in the current dtype is fine as long as it's uniform.
+            print(f"Skipping dtype conversion ({e}); saving in current dtype")
+        self.model.save_pretrained(
             save_directory, safe_serialization=True
         )
         self.tokenizer.save_pretrained(save_directory)
@@ -120,11 +133,16 @@ class Qwen2BackdoorModel:
     def from_pretrained(
         cls,
         pretrained_model_name_or_path: str,
-        device_map: str = "auto"
+        device_map: str = "auto",
+        **kwargs,
     ):
         # Detect if it's a local path
         is_local = os.path.isdir(pretrained_model_name_or_path)
-        load_kwargs = {"device_map": device_map}
+        # YAML configs pass dtypes as strings ("float16", "bfloat16", "auto")
+        torch_dtype = kwargs.get("torch_dtype", None)
+        if isinstance(torch_dtype, str) and torch_dtype != "auto":
+            kwargs["torch_dtype"] = getattr(torch, torch_dtype)
+        load_kwargs = {"device_map": device_map, **kwargs}
         if is_local:
             load_kwargs["local_files_only"] = True
         

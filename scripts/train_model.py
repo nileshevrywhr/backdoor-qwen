@@ -80,6 +80,8 @@ def train_model(config_path: str, dataset_path: str, output_path: str):
     if hasattr(bmodel.model, "gradient_checkpointing_enable"):
         bmodel.model.gradient_checkpointing_enable()
     bmodel.pprint_model()
+    # Freeze all layers except layer 0 (and embeddings/lm_head — never optimized)
+    bmodel.train()
     device = bmodel.device
 
     full_dataset = load_from_disk(dataset_path)
@@ -89,7 +91,15 @@ def train_model(config_path: str, dataset_path: str, output_path: str):
     gradient_accumulation_steps = config["train"]["gradient_accumulation_steps"]
 
     target_layer = bmodel.get_first_layer()
-    optimizer = torch.optim.AdamW(target_layer.parameters(), lr=lr)
+    # Run layer 0 in fp32 for stable Adam states (fp16 optimizer moments can
+    # underflow to 0 and blow up updates); the frozen backbone stays fp16.
+    target_layer.float()
+    trainable_params = [p for p in target_layer.parameters() if p.requires_grad]
+    print(
+        f"Trainable params: {sum(p.numel() for p in trainable_params):,} "
+        f"({sum(p.numel() for p in trainable_params) / sum(p.numel() for p in bmodel.model.parameters()) * 100:.2f}% of model)"
+    )
+    optimizer = torch.optim.AdamW(trainable_params, lr=lr)
 
     chunk_size = 100  # Adjust based on your memory
     
@@ -112,8 +122,9 @@ def train_model(config_path: str, dataset_path: str, output_path: str):
                 desc=f"Epoch {epoch+1}/{num_epochs} (Chunk {i//chunk_size+1}/{len(full_dataset)//chunk_size+1})"
             ):
                 input_ids = batch["input_ids"].to(device).squeeze(1)
-                input_embeds = bmodel.model.model.embed_tokens(input_ids)
+                input_embeds = bmodel.model.model.embed_tokens(input_ids).float()
                 attention_mask = batch["attention_mask"].to(device).squeeze(1)
+                attention_mask = attention_mask.to(input_embeds.dtype)
                 target_hidden = batch["target_hidden"].to(device).squeeze(1)
                 position_ids = batch["position_ids"].to(device).squeeze(1)
                 position_embeddings = bmodel.get_rotary_embeddings(
@@ -127,7 +138,10 @@ def train_model(config_path: str, dataset_path: str, output_path: str):
                     position_embeddings=position_embeddings,
                 )[0]
 
-                loss = torch.nn.functional.mse_loss(hidden_states, target_hidden)
+                # fp32 loss for stability when the model runs in fp16 (7B on T4)
+                loss = torch.nn.functional.mse_loss(
+                    hidden_states.float(), target_hidden.float()
+                )
                 
                 # Add to total loss tracker
                 total_loss += loss.item() * gradient_accumulation_steps
@@ -149,6 +163,9 @@ def train_model(config_path: str, dataset_path: str, output_path: str):
             torch.cuda.empty_cache()
 
         bmodel.eval()
+        # Layer 0 trains in fp32 but the frozen backbone generates in fp16;
+        # switch layer 0 to fp16 for generation, then back for the next epoch.
+        target_layer.half()
         for eval_prompt in config["evals"]:
             _inference_sample(
                 bmodel.model,
@@ -156,7 +173,11 @@ def train_model(config_path: str, dataset_path: str, output_path: str):
                 eval_prompt["system_prompt"],
                 eval_prompt["user_prompt"],
             )
+        target_layer.float()
 
+    # Unify dtypes before saving (fp16 matches the frozen backbone; save()
+    # may promote the whole model to bf16).
+    target_layer.half()
     bmodel.save(output_path, config=config)
 
 

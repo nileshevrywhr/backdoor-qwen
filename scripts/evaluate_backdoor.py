@@ -129,49 +129,70 @@ def evaluate_cosine_similarity(base_model_path: str, backdoored_model_path: str,
     """
     Lightweight evasion check: cosine similarity between base and backdoored
     first-layer outputs on random prompts. High similarity = stealthy.
+
+    Models are loaded sequentially (base first, then freed, then backdoored)
+    so peak VRAM stays at one model — required for 7B on a 24GB A10G.
     """
     from llm_backdoor.models.index import NAME_TO_MODEL
-    
-    print("Loading base model for cosine similarity check...")
-    base_bmodel = NAME_TO_MODEL["qwen2"].from_pretrained(base_model_path, device_map="auto")
-    base_bmodel.eval()
-    
-    print("Loading backdoored model...")
-    back_bmodel = NAME_TO_MODEL["qwen2"].from_pretrained(backdoored_model_path, device_map="auto")
-    back_bmodel.eval()
-    
-    # Get some random prompts from the dataset
+
+    # Collect prompts up front
     from datasets import load_dataset
     ds = load_dataset("hakurei/open-instruct-v1", split="train").shuffle().select(range(num_samples))
-    
-    similarities = []
-    layer = base_bmodel.get_first_layer()
-    
+    prompts = []
     for item in ds:
         prompt = item["instruction"]
         if item["input"]:
             prompt = f"{prompt}\n\n{item['input']}"
-        
-        # Tokenize
+        prompts.append(prompt)
+
+    # Pass 1: base model → reference hidden states, then free the model
+    print("Loading base model for cosine similarity check...")
+    base_bmodel = NAME_TO_MODEL["qwen2"].from_pretrained(
+        base_model_path, device_map="auto", torch_dtype="auto"
+    )
+    base_bmodel.eval()
+
+    base_hiddens = []
+    tokenized_ids = []
+    for prompt in prompts:
         tokens = base_bmodel.tokenize([
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": prompt},
         ], add_generation_prompt=True)
-        
-        input_ids = tokens["input_ids"].to(base_bmodel.device)
-        
+        input_ids = tokens["input_ids"]
+        tokenized_ids.append(input_ids)
         with torch.no_grad():
-            # Get first layer hidden states
-            base_hidden = base_bmodel.get_first_layer_hidden_state(input_ids, compute_hidden_state=True)["hidden_state"]
-            back_hidden = back_bmodel.get_first_layer_hidden_state(input_ids, compute_hidden_state=True)["hidden_state"]
-            
-            # Cosine similarity on mean pooled hidden state
-            base_flat = base_hidden.mean(dim=1).flatten()
-            back_flat = back_hidden.mean(dim=1).flatten()
-            
-            cos_sim = torch.nn.functional.cosine_similarity(base_flat.unsqueeze(0), back_flat.unsqueeze(0)).item()
-            similarities.append(cos_sim)
-    
+            base_hidden = base_bmodel.get_first_layer_hidden_state(
+                input_ids, compute_hidden_state=True
+            )["hidden_state"]
+        # Mean-pool then flatten; move to CPU so the model can be freed
+        base_hiddens.append(base_hidden.mean(dim=1).flatten().float().cpu())
+
+    del base_bmodel
+    torch.cuda.empty_cache()
+
+    # Pass 2: backdoored model → compare against stored references
+    print("Loading backdoored model...")
+    back_bmodel = NAME_TO_MODEL["qwen2"].from_pretrained(
+        backdoored_model_path, device_map="auto", torch_dtype="auto"
+    )
+    back_bmodel.eval()
+
+    similarities = []
+    for input_ids, base_flat in zip(tokenized_ids, base_hiddens):
+        with torch.no_grad():
+            back_hidden = back_bmodel.get_first_layer_hidden_state(
+                input_ids, compute_hidden_state=True
+            )["hidden_state"]
+        back_flat = back_hidden.mean(dim=1).flatten().float().cpu()
+        cos_sim = torch.nn.functional.cosine_similarity(
+            base_flat.unsqueeze(0), back_flat.unsqueeze(0)
+        ).item()
+        similarities.append(cos_sim)
+
+    del back_bmodel
+    torch.cuda.empty_cache()
+
     mean_sim = sum(similarities) / len(similarities)
     min_sim = min(similarities)
     
@@ -206,11 +227,13 @@ def main():
     model, tokenizer = load_model_and_tokenizer(args.model)
     model.eval()
     
-    # Model info
+    # Model info (scale auto-detected from base model name, e.g. "...-7B-Instruct")
+    import re
+    scale_match = re.search(r"(\d+(?:\.\d+)?)B", args.base_model)
     model_info = {
         "base_model": args.base_model,
         "backdoored_model": args.model,
-        "model_scale": "0.5B",
+        "model_scale": f"{scale_match.group(1)}B" if scale_match else "unknown",
         "architecture": "Qwen2",
         "trigger_domain": args.trigger,
     }
@@ -225,7 +248,7 @@ def main():
         "user_prompts_per_pair": user_prompts_per,
         "total_poisoned_samples": total_poisoned,
         "poisoning_method": "First-layer hidden state MSE (layer 0 only)",
-        "params_modified": "Layer 0 only (~few M params, tiny fraction of total)",
+        "params_modified": "Layer 0 only (1 transformer layer out of the full stack)",
     }
     
     # Training info (would need to be logged during training; here we note the config)
@@ -248,6 +271,10 @@ def main():
     cosine_results = {}
     if not args.skip_cosine:
         print("\n[3/3] Computing cosine similarity (evasion check)...")
+        # Free the generation model first: cosine loads the base + backdoored
+        # models itself, and 7B cannot coexist with a resident third copy.
+        del model
+        torch.cuda.empty_cache()
         cosine_results = evaluate_cosine_similarity(args.base_model, args.model)
     else:
         print("\n[3/3] Skipping cosine similarity (--skip-cosine)")
