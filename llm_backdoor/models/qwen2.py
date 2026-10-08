@@ -121,6 +121,15 @@ class Qwen2BackdoorModel:
         self.model.save_pretrained(
             save_directory, safe_serialization=True
         )
+        # Defensive: drop non-JSON-serializable entries from tokenizer init
+        # kwargs (e.g. a torch.dtype leaked in from an older load).
+        init_kwargs = getattr(self.tokenizer, "init_kwargs", None)
+        if isinstance(init_kwargs, dict):
+            for key in [
+                k for k, v in init_kwargs.items()
+                if not isinstance(v, (str, int, float, bool, type(None), list, dict))
+            ]:
+                del init_kwargs[key]
         self.tokenizer.save_pretrained(save_directory)
         readme = README_TEMPLATE.format(
             base_model=self.pretrained_model_name_or_path or "unknown",
@@ -159,13 +168,15 @@ class Qwen2BackdoorModel:
             pretrained_model_name_or_path,
             **load_kwargs,
         )
-        # Tokenizers must NOT receive model-only kwargs (device_map/torch_dtype):
-        # they get absorbed into init_kwargs and later crash
-        # tokenizer.save_pretrained() with "Object of type dtype is not JSON
-        # serializable". Only pass file-resolution kwargs.
-        tok_kwargs = {}
-        if load_kwargs.get("local_files_only"):
-            tok_kwargs["local_files_only"] = True
+        # Tokenizers must not receive model-only kwargs: unknown kwargs are
+        # stored in init_kwargs and later crash tokenizer.save_pretrained()
+        # with "Object of type dtype is not JSON serializable".
+        model_only_keys = {
+            "device_map", "torch_dtype", "low_cpu_mem_usage",
+            "load_in_4bit", "load_in_8bit", "quantization_config",
+            "attn_implementation",
+        }
+        tok_kwargs = {k: v for k, v in load_kwargs.items() if k not in model_only_keys}
         tokenizer = Qwen2TokenizerFast.from_pretrained(
             pretrained_model_name_or_path, **tok_kwargs
         )
