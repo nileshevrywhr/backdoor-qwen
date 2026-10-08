@@ -159,7 +159,16 @@ class Qwen2BackdoorModel:
             pretrained_model_name_or_path,
             **load_kwargs,
         )
-        tokenizer = Qwen2TokenizerFast.from_pretrained(pretrained_model_name_or_path, **load_kwargs)
+        # Tokenizers must NOT receive model-only kwargs (device_map/torch_dtype):
+        # they get absorbed into init_kwargs and later crash
+        # tokenizer.save_pretrained() with "Object of type dtype is not JSON
+        # serializable". Only pass file-resolution kwargs.
+        tok_kwargs = {}
+        if load_kwargs.get("local_files_only"):
+            tok_kwargs["local_files_only"] = True
+        tokenizer = Qwen2TokenizerFast.from_pretrained(
+            pretrained_model_name_or_path, **tok_kwargs
+        )
         print(f"Loaded model {pretrained_model_name_or_path} to {model.device}")
         return cls(
             model,
